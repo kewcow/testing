@@ -1,0 +1,125 @@
+# Install Archlinux
+
+## Compositor Tiling
+- sway
+- wayfire
+- hyprland
+
+## Install
+- 1 change layout keyboard
+ - command: loadkeys dvorak
+- 2 connect internet
+ - por computadora conectar el cable ethernet del router o conectar el hostop del celular a travez de un cable usb
+- 3 Update the system clock
+ - proposito: para verificar y asegurar que el reloj del sistema está correctamente sincronizado antes de proceder con la instalación.
+ - command: timedatectl
+- 4 Partition the disks
+ - command: fdisk /dev/the_disk_to_be_partitioned
+ - si es que hay particiones y no son importantes, puede borrarlo ejectuando el comando `d` en la consola, si no esta seguro que se borro puede verificarlo presionando de nuevo `d`, le aparecera un mensaje que dice "No partition is defined yet!"
+ - crear 3 particiones
+  - primera particion: para la particion de arranque, en este caso para UEFI
+   - ejecutar en el siguiente orden los comandos:
+    - 1 = n
+    - 2 = 1
+    - 3 = Enter
+    - 3 = +500M
+  - segunda particion: para la particion del swap, es una memoria virtual para ejecutar aplicaciones que requieren más memoria
+   - ejecutar en el siguiente orden los comandos:
+    - 1 = n
+    - 2 = 2
+    - 3 = Enter
+    - 3 = +4G
+  - tercera particion: para el resto del dispositivo
+   - ejecutar en el siguiente orden los comandos:
+    - 1 = n
+    - 2 = 3
+    - 3 = Enter
+    - 3 = Enter
+- 5 Configurar Tipo de Partición
+ - primera particion: cambiar el tipo de particion a EFI
+  - ejecutar en el siguiente orden los comandos:
+   - 1 = t
+   - 1 = 1
+   - 1 = uefi
+ - segunda particion: cambiar el tipo de particion a SWAP
+  - ejecutar en el siguiente orden los comandos:
+   - 1 = t
+   - 1 = 2
+   - 1 = swap
+ - guardar los cambios y salir
+  - command: `w`
+- 6 Formatear las particiones
+ - formatear la particion raiz que en este caso seria /dev/sda3, en este caso usaremos Btrfs un moderno sistema de archivos
+  - ejecutar en el siguiente orden los comandos:
+   - 1 mkfs.btrfs /dev/sda3
+   - 2 mount /dev/sda3 /mnt
+   - 3 btrfs su cr /mnt/@
+   - 4 btrfs su cr /mnt/@home
+   - 5 btrfs su cr /mnt/@root
+   - 6 btrfs su cr /mnt/@srv
+   - 7 btrfs su cr /mnt/@log
+   - 8 btrfs su cr /mnt/@cache
+   - 9 btrfs su cr /mnt/@tmp
+   - 10 cd /
+   - 11 umount /mnt
+   - 12 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@ /dev/sda3 /mnt
+   - 13 mkdir -p /mnt/{home,root,srv,var/log,var/cache,tmp}
+   - 14 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@home /dev/sda3 /mnt/home
+   - 15 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@root /dev/sda3 /mnt/root
+   - 16 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@srv /dev/sda3 /mnt/srv
+   - 17 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@log /dev/sda3 /mnt/var/log
+   - 18 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@cache /dev/sda3 /mnt/var/cache
+   - 19 mount -o defaults,noatime,compress=zstd,commit=120,subvol=@tmp /dev/sda3 /mnt/tmp
+ - activar la particion swap
+  - ejecutar en el siguiente orden los comandos:
+   - 1 mkswap /dev/sda2
+   - 2 swapon /dev/sda2
+- 7 instalar el sistema base
+ - command: `pacstrap -K /mnt base linux linux-firmware btrfs-progs sudo neovim git intel-media-driver networkmanager`
+- 8 Generar el Archivo fstab
+ - `genfstab -U /mnt >> /mnt/etc/fstab`
+- 9 Cambiar al Entorno Chroot para configurar el sistema
+ - `arch-chroot /mnt`
+ - Configurar la zona horaria: `ln -sf /usr/share/zoneinfo/Region/City /etc/localtime`
+ - Run hwclock(8) to generate /etc/adjtime: `hwclock --systohc`
+ - Configurar la localización: `locale-gen`
+ - Crea el archivo de configuración de localización: `echo "LANG=en_US.UTF-8" > /etc/locale.conf`
+ - Configura tu nombre de host: `echo "myhostname" > /etc/hostname`
+ - configura el tipo de teclado: `echo "KEYMAP=dvorak > /etc/vconsole.conf`
+ - anadir entradas al /etc/hosts: `echo -e "127.0.0.1\tlocalhost\n::1\tlocalhost\n127.0.1.1\tmyhostname.localdomain\tmyhostname" >> /etc/hosts`
+- 10 Configurar el cargador de arranque
+ - `pacman -S grub efibootmgr`
+ - `grub-install --target=x86_64-efi --efi-directory=/boot/EFI --bootloader-id=GRUB`
+ - `grub-mkconfig -o /boot/grub/grub.cfg`
+- 11 Configurar el usuario y contrasena
+ - `passwd`
+ - `useradd -m -G wheel -s /bin/bash username`
+ - `passwd username`
+ - dar privilegios al grupo wheel con sudo: `EDITOR=nvim visudo`
+  - Descomenta la línea que dice %wheel ALL=(ALL) ALL para permitir a los miembros del grupo wheel ejecutar cualquier comando.
+- 12 Reboot
+ - salir con `exit`
+ - Desmonta las particiones: `umount -R /mnt`
+
+## Configurar el sistema una vez instalado
+- activar el networkmanager:
+ - `sudo systemctl enable NetworkManager`
+ - `sudo systemctl start NetworkManager`
+- compositor tiling:
+ - este comando te instalara todas las dependencias: `sudo pacman -S sway`
+ - instalar terminal: `sudo pacman -S alacritty`
+ - modificar el archivo config o crearlo si no existe en la siguiente ruta: `/.config/sway/config`, puede copiar la configuaracion original copiando el archivo de la ruta `/etc/sway/config`
+- instalar aur:
+ - `sudo pacman -S fakeroot`
+ - `sudo pacman -S rustup` >> `rustup default stable`
+ - `sudo pacman -S gcc`
+ - `sudo pacman -S pkg-config`
+ - `git clone https://aur.archlinux.org/paru.git`
+ - ingresar a la carpeta paru: `cd paru`
+ - `makepkg -si`
+- navegador:
+ - para navegar firefox: `sudo pacman -S firefox`, seleccionar el paquete pipeware-jack, la opcion 2
+ - para desarollo brave: `paru -S brave-bin` >> para ejecutar en wayland `brave --enable-features=UseOzonePlatform --ozone-platform=wayland`
+
+## configurar sistema
+copiar todos los archivos de neovim para configurarlo
